@@ -1,4 +1,4 @@
-cs430-proj3-illumination
+cs430-proj4-raytracing
 =========================
 Applies basic shading and lighting techniques to spheres and planes. Supports multiple light sources
 and spotlights as well as pointlights. 
@@ -25,7 +25,7 @@ $ make
 ## Running the program ##
 
 #### Mac OSX and Linux ####
-`$ ./cs430-proj3-illumination <width> <height> <input.json> <output>`
+`$ ./raytrace <width> <height> <input.json> <output>`
 
 #### Windows ####
-`> cs430-proj3-illumination.exe <width> <height> <input.json> <output>`
+`> raytrace.exe <width> <height> <input.json> <output>`
