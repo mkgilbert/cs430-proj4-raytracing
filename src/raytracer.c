@@ -117,7 +117,7 @@ double sphere_intersect(Ray *ray, double *C, double r) {
  * @param ret_index - the index in objects array of the closest object we intersected
  * @param ret_best_t - the distance of the closest object
  */
-void get_dist_and_idx_closest_obj(Ray *ray, int self_index, double max_distance, int *ret_index, double *ret_best_t) {
+void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double *ret_best_t) {
     int best_o = -1;
     double best_t = INFINITY;
     for (int i=0; objects[i].type != 0; i++) {
@@ -191,7 +191,7 @@ void shade(Ray *ray, int obj_index, double t, double color[3]) {
         double best_t;  // distance of closest object
 
         // new check new ray for intersections with other objects
-        get_dist_and_idx_closest_obj(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
+        shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
 
         double normal[3];
         double obj_diff_color[3];
@@ -287,7 +287,7 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
 
             int best_o;     // index of 'best' or closest object
             double best_t;  // closest distance
-            get_dist_and_idx_closest_obj(&ray, -1, INFINITY, &best_o, &best_t);
+            shoot(&ray, -1, INFINITY, &best_o, &best_t);
 
             // set ambient color
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection

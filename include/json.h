@@ -27,7 +27,10 @@ typedef struct sphere_t {
     double *diff_color;
     double *spec_color;
     double *position;
+    double reflect;
+    double refract;
     double radius;
+    double ior;
 } Sphere;
 
 typedef struct plane_t {
@@ -35,6 +38,9 @@ typedef struct plane_t {
     double *spec_color;     // specular color
     double *position;
     double *normal;
+    double reflect;        // reflectivity
+    double refract;        // refractivity
+    double ior;            // index of refraction of the volume
 } Plane;
 
 typedef struct light_t {

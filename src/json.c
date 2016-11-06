@@ -399,7 +399,36 @@ void read_json(FILE *json) {
                             fprintf(stderr, "Error: read_json: Position vector can't be applied here: %d\n", line);
                             exit(1);
                         }
-
+                    }
+                    else if (strcmp(key, "reflectivity") == 0) {
+                        if (obj_type == SPHERE)
+                            objects[obj_counter].sphere.reflect = next_number(json);
+                        else if (obj_type == PLANE)
+                            objects[obj_counter].plane.reflect = next_number(json);
+                        else {
+                            fprintf(stderr, "Error: read_json: Reflectivity can't be applied here: %d\n", line);
+                            exit(1);
+                        }
+                    }
+                    else if (strcmp(key, "refractivity") == 0) {
+                        if (obj_type == SPHERE)
+                            objects[obj_counter].sphere.refract = next_number(json);
+                        else if (obj_type == PLANE)
+                            objects[obj_counter].plane.refract = next_number(json);
+                        else {
+                            fprintf(stderr, "Error: read_json: Refractivity can't be applied here: %d\n", line);
+                            exit(1);
+                        }
+                    }
+                    else if (strcmp(key, "ior") == 0) {
+                        if (obj_type == SPHERE)
+                            objects[obj_counter].sphere.ior = next_number(json);
+                        else if (obj_type == PLANE)
+                            objects[obj_counter].plane.ior = next_number(json);
+                        else {
+                            fprintf(stderr, "Error: read_json: ior can't be applied here: %d\n", line);
+                            exit(1);
+                        }
                     }
                     else if (strcmp(key, "normal") == 0) {
                         if (obj_type != PLANE) {
