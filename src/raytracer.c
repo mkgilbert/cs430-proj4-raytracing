@@ -13,7 +13,8 @@
 #include <string.h>
 #include <math.h>
 
-#define SHININESS 20   // constant for shininess
+#define SHININESS 20        // constant for shininess
+#define MAX_REC_LEVEL 7     // maximum recursion level for raytracing
 
 /* overall background color for the image */
 V3 background_color = {0, 0, 0};
@@ -110,7 +111,27 @@ double sphere_intersect(Ray *ray, double *C, double r) {
 }
 
 /**
- *
+ * gets the reflection vector of a vector going in "direction" direction. It uses "position" to help determine
+ * the normal if the object is a sphere
+ * @param direction - direction vector that we are reflecting
+ * @param position  - position where the direction vector is hitting the object (so we can determine the normal vector)
+ * @param obj_index - index into objects array. i.e. the current object we are reflecting off of
+ * @param reflection - the resulting reflection vector
+ */
+void reflection_vector(V3 direction, V3 position, int obj_index, V3 reflection) {
+    V3 normal;
+    if (objects[obj_index].type == PLANE) {
+        v3_copy(objects[obj_index].plane.normal, normal);
+    }
+    else if (objects[obj_index].type == SPHERE) {
+        v3_sub(position, objects[obj_index].sphere.position, normal);
+    }
+    normalize(normal);
+    v3_reflect(direction, normal, reflection);
+}
+
+/**
+ * Shoots out a ray to check for the closest object intersection
  * @param ray - the ray we are shooting out to find an intersection with
  * @param self_index - if < 0, ignore this. If >= 0, it is the index of the object we are getting distance FROM
  * @param max_distance - This is the maximum distance we care to check. e.g. distance to a light source
@@ -156,6 +177,17 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
     (*ret_best_t) = best_t;
 }
 
+/**
+ * This determines a color shade directly, determining the attenuation of a given light along with the diffuse
+ * and specular colors of the object.
+ * @param ray - the ray coming into the object at objects[obj_index]
+ * @param obj_index - index into the objects array. i.e. the current object we are determining the color of
+ * @param position - The current vector position that the ray has intersected with the object
+ * @param light - The specific light object in the scene that we are using to determine the shade of this object
+ * @param max_dist - The furthest distance from the object we should be allowing. This is the distance from the current
+ * object to the light object position
+ * @param color - This is the final color value when the function is complete
+ */
 void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, double max_dist, double color[3]) {
     double normal[3];
     double obj_diff_color[3];
@@ -212,9 +244,18 @@ void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, dou
  * @param obj_index  - index of the current object we are running shade on
  * @param t - distance to the object
  * @param color - this will be the output color after shade calculations are done
+ * @param rec_level - This is the current level of recursion we are on
  */
-void shade(Ray *ray, int obj_index, double t, double color[3]) {
-    // loop through lights and do shadow test
+void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
+    // check that we haven't done too many recursions
+    if (rec_level > MAX_REC_LEVEL) {
+        // return black for color
+        color[0] = 0;
+        color[1] = 0;
+        color[2] = 0;
+        return;
+    }
+
     double new_origin[3];
     double new_dir[3];
 
@@ -231,14 +272,44 @@ void shade(Ray *ray, int obj_index, double t, double color[3]) {
             .direction = {new_dir[0], new_dir[1], new_dir[2]}
     };
 
+    // get nearest object based on reflection vector of ray->direction
+    V3 reflection;
+    V3 obj_to_view;
+    v3_scale(ray->direction, -1, obj_to_view);
+    reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
+
+    // create temp variables to use for recursively shading
+    int best_o;     // index of closest object
+    double best_t;  // distance of closest object
+    Ray ray_reflected = {
+            .origin = {new_origin[0], new_origin[1], new_origin[2]},
+            .direction = {reflection[0], reflection[1], reflection[2]}
+    };
+
+    // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
+    shoot(&ray_reflected, obj_index, INFINITY, &best_o, &best_t);
+
+    if (best_o == -1) { // there were no objects that we intersected with
+        color[0] = 0;
+        color[1] = 0;
+        color[2] = 0;
+    }
+    else {  // we had an intersection, so we need to recursively shade...
+        double reflection_color[3] = {0, 0, 0};
+        shade(&ray_reflected, best_o, best_t, rec_level+1, reflection_color);
+        Light light;
+        v3_scale(reflection, -1, light.direction);
+        light.color[0] = reflection_color[0];
+        light.color[1] = reflection_color[1];
+        light.color[2] = reflection_color[2];
+        direct_shade(ray, obj_index, ray_reflected.direction, &light, INFINITY, color);
+    }
     for (int i=0; i<nlights; i++) {
         // find new ray direction
+
         v3_sub(lights[i].position, ray_new.origin, ray_new.direction);
         double distance_to_light = v3_len(ray_new.direction);
         normalize(ray_new.direction);
-
-        int best_o;     // index of closest object
-        double best_t;  // distance of closest object
 
         // new check new ray for intersections with other objects
         shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
@@ -249,8 +320,6 @@ void shade(Ray *ray, int obj_index, double t, double color[3]) {
         // there was an object in the way, so we don't do anything. It's shadow
     }
 }
-
-
 
 /**
  * Shoots out rays over a viewplane of dimensions stored in img and looks through
@@ -292,7 +361,7 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
 
             // set ambient color
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
-                shade(&ray, best_o, best_t, color);
+                shade(&ray, best_o, best_t, 0, color);
                 set_pixel_color(color, i, j, img);
             }
             else {
