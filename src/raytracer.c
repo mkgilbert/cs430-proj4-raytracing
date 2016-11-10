@@ -256,8 +256,8 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         return;
     }
 
-    double new_origin[3];
-    double new_dir[3];
+    double new_origin[3] = {0, 0, 0};
+    double new_dir[3] = {0, 0, 0};
 
     // find new ray origin
     if (ray == NULL) {
@@ -273,8 +273,8 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     };
 
     // get nearest object based on reflection vector of ray->direction
-    V3 reflection;
-    V3 obj_to_view;
+    V3 reflection = {0, 0, 0};
+    V3 obj_to_view = {0, 0, 0};
     v3_scale(ray->direction, -1, obj_to_view);
     reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
 
@@ -290,19 +290,23 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     shoot(&ray_reflected, obj_index, INFINITY, &best_o, &best_t);
 
     if (best_o == -1) { // there were no objects that we intersected with
-        color[0] = 0;
+        /*color[0] = 0;
         color[1] = 0;
-        color[2] = 0;
+        color[2] = 0;*/
     }
     else {  // we had an intersection, so we need to recursively shade...
         double reflection_color[3] = {0, 0, 0};
         shade(&ray_reflected, best_o, best_t, rec_level+1, reflection_color);
         Light light;
+        light.direction = malloc(sizeof(V3));
+        light.color = malloc(sizeof(double)*3);
         v3_scale(reflection, -1, light.direction);
         light.color[0] = reflection_color[0];
         light.color[1] = reflection_color[1];
         light.color[2] = reflection_color[2];
         direct_shade(ray, obj_index, ray_reflected.direction, &light, INFINITY, color);
+        free(light.direction);
+        free(light.color);
     }
     for (int i=0; i<nlights; i++) {
         // find new ray direction
