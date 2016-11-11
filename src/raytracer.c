@@ -281,9 +281,23 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     // get nearest object based on reflection vector of ray->direction
     V3 reflection = {0, 0, 0};
     V3 obj_to_view = {0, 0, 0};
-    v3_scale(ray->direction, -1, obj_to_view);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////// This section is for testing, replacing the following section. Both methods seem to work the same way /////
+    v3_copy(ray->direction, obj_to_view);
     normalize(obj_to_view);
-    reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
+    reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);
+    /////////////// end section ////////////////////////////////////////////////////////////////////////////////////
+
+    ///// This section was how I originally did it //////////////////////////
+    //v3_scale(ray->direction, -1, obj_to_view);
+    //normalize(obj_to_view);
+    //reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
+
+    // TESTING...
+    //v3_scale(reflection, -1, reflection);
+    // END TESTING
+    //////////// end section /////////////////////////////////////////////////
 
     // create temp variables to use for recursively shading
     int best_o;     // index of closest object
@@ -312,6 +326,7 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         light.direction = malloc(sizeof(V3));
         light.color = malloc(sizeof(double)*3);
         v3_scale(reflection, -1, light.direction);
+        //v3_copy(reflection, light.direction);
         light.color[0] = reflection_color[0];
         light.color[1] = reflection_color[1];
         light.color[2] = reflection_color[2];
@@ -320,10 +335,10 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         // first find the 3d position of the intersection with the "light" object
         v3_scale(ray_reflected.direction, best_t, ray_reflected.direction);
         v3_add(ray_reflected.direction, ray_new.origin, ray_new.direction);
-        normalize(ray_new.direction);
+        //normalize(ray_new.direction);
 
-        direct_shade(ray, obj_index, ray_reflected.direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
-        //direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
+        //direct_shade(&ray_new, obj_index, ray_reflected.direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
+        direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
 
         //cleanup
         free(light.direction);
@@ -383,6 +398,11 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             int best_o;     // index of 'best' or closest object
             double best_t;  // closest distance
             shoot(&ray, -1, INFINITY, &best_o, &best_t);
+
+            // Testing edge of circle where we're getting a black reflection instead of green. X: 9459, Y: 8104
+            if (i == 830 && j == 600) {
+                printf("found test pixel\n");
+            }
 
             // set ambient color
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
