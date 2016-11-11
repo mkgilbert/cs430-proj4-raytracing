@@ -232,8 +232,14 @@ void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, dou
     v3_copy(L, light_to_obj_dir);
     v3_scale(light_to_obj_dir, -1, light_to_obj_dir);
 
-    fang = calculate_angular_att(light, light_to_obj_dir);
-    frad = calculate_radial_att(light, max_dist);
+    if (light->type == REFLECTION) { // the light source is a reflection off of another object, so don't calculate attenuation
+        fang = 1;
+        frad = 1;
+    }
+    else {
+        fang = calculate_angular_att(light, light_to_obj_dir);
+        frad = calculate_radial_att(light, max_dist);
+    }
     color[0] += frad * fang * (specular[0] + diffuse[0]);
     color[1] += frad * fang * (specular[1] + diffuse[1]);
     color[2] += frad * fang * (specular[2] + diffuse[2]);
@@ -276,6 +282,7 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     V3 reflection = {0, 0, 0};
     V3 obj_to_view = {0, 0, 0};
     v3_scale(ray->direction, -1, obj_to_view);
+    normalize(obj_to_view);
     reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
 
     // create temp variables to use for recursively shading
@@ -285,32 +292,46 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
             .origin = {new_origin[0], new_origin[1], new_origin[2]},
             .direction = {reflection[0], reflection[1], reflection[2]}
     };
-
+    normalize(ray_reflected.direction);
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
     shoot(&ray_reflected, obj_index, INFINITY, &best_o, &best_t);
 
     if (best_o == -1) { // there were no objects that we intersected with
-        /*color[0] = 0;
+        color[0] = 0;
         color[1] = 0;
-        color[2] = 0;*/
+        color[2] = 0;
     }
     else {  // we had an intersection, so we need to recursively shade...
         double reflection_color[3] = {0, 0, 0};
         shade(&ray_reflected, best_o, best_t, rec_level+1, reflection_color);
+        //v3_scale(reflection_color, 0.3, reflection_color);
+
+        // create temp light object to hold object light reflection information
         Light light;
+        light.type = REFLECTION;
         light.direction = malloc(sizeof(V3));
         light.color = malloc(sizeof(double)*3);
         v3_scale(reflection, -1, light.direction);
         light.color[0] = reflection_color[0];
         light.color[1] = reflection_color[1];
         light.color[2] = reflection_color[2];
-        direct_shade(ray, obj_index, ray_reflected.direction, &light, INFINITY, color);
+
+        // set the new ray direction based on this temp "light" object
+        // first find the 3d position of the intersection with the "light" object
+        v3_scale(ray_reflected.direction, best_t, ray_reflected.direction);
+        v3_add(ray_reflected.direction, ray_new.origin, ray_new.direction);
+        normalize(ray_new.direction);
+
+        direct_shade(ray, obj_index, ray_reflected.direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
+        //direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
+
+        //cleanup
         free(light.direction);
         free(light.color);
     }
     for (int i=0; i<nlights; i++) {
         // find new ray direction
-
+        v3_zero(ray_new.direction);
         v3_sub(lights[i].position, ray_new.origin, ray_new.direction);
         double distance_to_light = v3_len(ray_new.direction);
         normalize(ray_new.direction);

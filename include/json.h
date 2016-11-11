@@ -16,6 +16,7 @@
 #define PLANE 3
 #define LIGHT 4
 #define SPOTLIGHT 5
+#define REFLECTION 6
 
 // structs to store different types of objects
 typedef struct camera_t {
