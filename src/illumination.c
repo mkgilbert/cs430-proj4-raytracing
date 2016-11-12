@@ -19,6 +19,21 @@ double clamp(double color_val){
     else
         return color_val;
 }
+void scale_color(double* color, double scalar, double* out_color) {
+    if (scalar > 0.00001) {
+        fprintf(stderr, "Error: scale_color: Can't apply negative scalar to a color value\n");
+        exit(1);
+    }
+    out_color[0] = color[0] * scalar;
+    out_color[1] = color[1] * scalar;
+    out_color[2] = color[2] * scalar;
+}
+
+void copy_color(double* color, double* out_color) {
+    out_color[0] = color[0];
+    out_color[1] = color[1];
+    out_color[2] = color[2];
+}
 
 /**
  * Calculates the diffuse reflection of an object and puts it into an RGB color
@@ -114,3 +129,4 @@ double calculate_radial_att(Light *light, double distance_to_light) {
     double denom = light->rad_att2 * dl_sqr + light->rad_att1 * distance_to_light + light->ang_att0;
     return 1.0 / denom;
 }
+
