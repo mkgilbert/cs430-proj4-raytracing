@@ -110,6 +110,44 @@ double sphere_intersect(Ray *ray, double *C, double r) {
     return t;
 }
 
+void normal_vector(int obj_index, V3 position, V3 normal) {
+    if (objects[obj_index].type == PLANE) {
+        v3_copy(objects[obj_index].plane.normal, normal);
+    }
+    else if (objects[obj_index].type == SPHERE) {
+        v3_sub(position, objects[obj_index].sphere.position, normal);
+    }
+    else {
+        fprintf(stderr, "Error: normal_vector: This object type does not have a normal vector\n");
+    }
+}
+
+double get_reflectivity(int obj_index) {
+    if (objects[obj_index].type == PLANE) {
+        return objects[obj_index].plane.reflect;
+    }
+    else if (objects[obj_index].type == SPHERE) {
+        return objects[obj_index].sphere.reflect;
+    }
+    else {
+        fprintf(stderr, "Error: get_reflectivity: Specified object does not have a reflect property\n");
+        return -1;
+    }
+}
+
+double get_refractivity(int obj_index) {
+    if (objects[obj_index].type == PLANE) {
+        return objects[obj_index].plane.refract;
+    }
+    else if (objects[obj_index].type == SPHERE) {
+        return objects[obj_index].sphere.refract;
+    }
+    else {
+        fprintf(stderr, "Error: get_reflectivity: Specified object does not have a reflect property\n");
+        return -1;
+    }
+}
+
 /**
  * gets the reflection vector of a vector going in "direction" direction. It uses "position" to help determine
  * the normal if the object is a sphere
@@ -120,14 +158,42 @@ double sphere_intersect(Ray *ray, double *C, double r) {
  */
 void reflection_vector(V3 direction, V3 position, int obj_index, V3 reflection) {
     V3 normal;
-    if (objects[obj_index].type == PLANE) {
-        v3_copy(objects[obj_index].plane.normal, normal);
-    }
-    else if (objects[obj_index].type == SPHERE) {
-        v3_sub(position, objects[obj_index].sphere.position, normal);
-    }
+    normal_vector(obj_index, position, normal);
     normalize(normal);
     v3_reflect(direction, normal, reflection);
+}
+
+void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior, V3 refracted_vector) {
+    // initializations and variables setup
+    normalize(direction);
+    normalize(position);
+    double int_ior;
+    if (objects[obj_index].type == PLANE)
+        int_ior = objects[obj_index].plane.ior;
+    else if (objects[obj_index].type == SPHERE)
+        int_ior = objects[obj_index].sphere.ior;
+    else {
+        fprintf(stderr, "Error: refraction_vector: object of type %d does not have ior field\n", objects[obj_index].type);
+        exit(1);
+    }
+    V3 normal, a, b;
+
+    // find normal vector of current object
+    normal_vector(obj_index, position, normal);
+    //normalize(normal);
+
+    // create coordinate frame with a and b, where b is tangent to the object intersection
+    v3_cross(normal, direction, a);
+    normalize(a);
+    v3_cross(a, normal, b);
+
+    // find transmission vector angle and direction
+    double sin_theta = v3_dot(direction, b);
+    double sin_phi = (ext_ior / int_ior) * sin_theta;
+    double cos_phi = sqrt(1 - sqr(sin_phi));
+    v3_scale(normal, -1*cos_phi, normal);
+    v3_scale(b, sin_phi, b);
+    v3_add(normal , b, refracted_vector);
 }
 
 /**
@@ -219,8 +285,8 @@ void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, dou
     v3_copy(position, V);
     double diffuse[3];
     double specular[3];
-    v3_zero(diffuse);
-    v3_zero(specular);
+    scale_color(diffuse, 0, diffuse);
+    scale_color(specular, 0, specular);
     calculate_diffuse(normal, L, light->color, obj_diff_color, diffuse);
     calculate_specular(SHININESS, L, R, normal, V, obj_spec_color, light->color, specular);
 
@@ -256,9 +322,7 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     // check that we haven't done too many recursions
     if (rec_level > MAX_REC_LEVEL) {
         // return black for color
-        color[0] = 0;
-        color[1] = 0;
-        color[2] = 0;
+        scale_color(color, 0, color);
         return;
     }
 
@@ -295,14 +359,16 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
     shoot(&ray_reflected, obj_index, INFINITY, &best_o, &best_t);
 
     if (best_o == -1) { // there were no objects that we intersected with
-        color[0] = 0;
-        color[1] = 0;
-        color[2] = 0;
+        scale_color(color, 0, color);
     }
+
     else {  // we had an intersection, so we need to recursively shade...
         double reflection_color[3] = {0, 0, 0};
+        double reflect_constant = get_reflectivity(obj_index);
+        //double refract_constant = get_refractivity(obj_index);
+
         shade(&ray_reflected, best_o, best_t, rec_level+1, reflection_color);
-        //v3_scale(reflection_color, 0.3, reflection_color);
+        v3_scale(reflection_color, reflect_constant, reflection_color);
 
         // create temp light object to hold object light reflection information
         Light light;
@@ -310,9 +376,7 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         light.direction = malloc(sizeof(V3));
         light.color = malloc(sizeof(double)*3);
         v3_scale(reflection, -1, light.direction);
-        light.color[0] = reflection_color[0];
-        light.color[1] = reflection_color[1];
-        light.color[2] = reflection_color[2];
+        copy_color(reflection_color, light.color);
 
         // set the new ray direction based on this temp "light" object
         // first find the 3d position of the intersection with the "light" object
@@ -322,7 +386,6 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         v3_sub(ray_reflected.direction, ray_new.origin, ray_new.direction);
         normalize(ray_new.direction);
 
-        //direct_shade(&ray_new, obj_index, ray_reflected.direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
         direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // this version allows reflections to work
 
         //cleanup
