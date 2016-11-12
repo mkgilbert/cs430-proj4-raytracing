@@ -1,7 +1,7 @@
 [
   {
     "type": "plane",
-    "diffuse_color": [0.3, 0.3, 0.3],
+    "diffuse_color": [0.1, 0.1, 1],
     "specular_color": [1.0, 1.0, 1.0],
     "position": [0, -1, 0],
     "normal": [0, 1, 0]

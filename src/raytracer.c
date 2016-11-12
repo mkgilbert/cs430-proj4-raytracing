@@ -280,13 +280,14 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
 
     // get nearest object based on reflection vector of ray->direction
     V3 reflection = {0, 0, 0};
-    V3 obj_to_view = {0, 0, 0};
+    //V3 obj_to_view = {0, 0, 0};
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////// This section is for testing, replacing the following section. Both methods seem to work the same way /////
-    v3_copy(ray->direction, obj_to_view);
-    normalize(obj_to_view);
-    reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);
+    //v3_copy(ray->direction, obj_to_view);
+    //normalize(obj_to_view);
+    normalize(ray->direction);
+    reflection_vector(ray->direction, ray_new.origin, obj_index, reflection);
     /////////////// end section ////////////////////////////////////////////////////////////////////////////////////
 
     ///// This section was how I originally did it //////////////////////////
@@ -326,7 +327,6 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         light.direction = malloc(sizeof(V3));
         light.color = malloc(sizeof(double)*3);
         v3_scale(reflection, -1, light.direction);
-        //v3_copy(reflection, light.direction);
         light.color[0] = reflection_color[0];
         light.color[1] = reflection_color[1];
         light.color[2] = reflection_color[2];
@@ -334,11 +334,13 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
         // set the new ray direction based on this temp "light" object
         // first find the 3d position of the intersection with the "light" object
         v3_scale(ray_reflected.direction, best_t, ray_reflected.direction);
-        v3_add(ray_reflected.direction, ray_new.origin, ray_new.direction);
-        //normalize(ray_new.direction);
+
+        /****** changed this from v3_add to v3_sub and all of a sudden got full reflections *****/
+        v3_sub(ray_reflected.direction, ray_new.origin, ray_new.direction);
+        normalize(ray_new.direction);
 
         //direct_shade(&ray_new, obj_index, ray_reflected.direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
-        direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // TODO: this line is always returning 0 for color. I think the 3rd parameter is wrong maybe?
+        direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // this version allows reflections to work
 
         //cleanup
         free(light.direction);
