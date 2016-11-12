@@ -143,7 +143,20 @@ double get_refractivity(int obj_index) {
         return objects[obj_index].sphere.refract;
     }
     else {
-        fprintf(stderr, "Error: get_reflectivity: Specified object does not have a reflect property\n");
+        fprintf(stderr, "Error: get_refractivity: Specified object does not have a refract property\n");
+        return -1;
+    }
+}
+
+double get_ior(int obj_index) {
+    if (objects[obj_index].type == PLANE) {
+        return objects[obj_index].plane.ior;
+    }
+    else if (objects[obj_index].type == SPHERE) {
+        return objects[obj_index].sphere.ior;
+    }
+    else {
+        fprintf(stderr, "Error: get_ior: Specified object does not have an ior property\n");
         return -1;
     }
 }
@@ -165,8 +178,11 @@ void reflection_vector(V3 direction, V3 position, int obj_index, V3 reflection) 
 
 void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior, V3 refracted_vector) {
     // initializations and variables setup
-    normalize(direction);
-    normalize(position);
+    V3 dir, pos;
+    v3_copy(direction, dir);
+    v3_copy(position, pos);
+    normalize(dir);
+    normalize(pos);
     double int_ior;
     if (objects[obj_index].type == PLANE)
         int_ior = objects[obj_index].plane.ior;
@@ -179,16 +195,16 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
     V3 normal, a, b;
 
     // find normal vector of current object
-    normal_vector(obj_index, position, normal);
-    //normalize(normal);
+    normal_vector(obj_index, pos, normal);
+    normalize(normal);
 
     // create coordinate frame with a and b, where b is tangent to the object intersection
-    v3_cross(normal, direction, a);
+    v3_cross(normal, dir, a);
     normalize(a);
     v3_cross(a, normal, b);
 
     // find transmission vector angle and direction
-    double sin_theta = v3_dot(direction, b);
+    double sin_theta = v3_dot(dir, b);
     double sin_phi = (ext_ior / int_ior) * sin_theta;
     double cos_phi = sqrt(1 - sqr(sin_phi));
     v3_scale(normal, -1*cos_phi, normal);
@@ -318,22 +334,26 @@ void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, dou
  * @param color - this will be the output color after shade calculations are done
  * @param rec_level - This is the current level of recursion we are on
  */
-void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
+void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, double color[3]) {
     // check that we haven't done too many recursions
-    if (rec_level > MAX_REC_LEVEL) {
+    if (rec_level > MAX_REC_LEVEL) { // base case, reached max number of recursions
         // return black for color
         scale_color(color, 0, color);
         return;
+    }
+    if (obj_index == -1) {  // base case, no intersecting object had been found, so return black
+        scale_color(color, 0, color);
+        return;
+    }
+    if (ray == NULL) {
+        fprintf(stderr, "Error: shade: Ray had no data\n");
+        exit(1);
     }
 
     double new_origin[3] = {0, 0, 0};
     double new_dir[3] = {0, 0, 0};
 
     // find new ray origin
-    if (ray == NULL) {
-        fprintf(stderr, "Error: shade: Ray had no data\n");
-        exit(1);
-    }
     v3_scale(ray->direction, t, new_origin);
     v3_add(new_origin, ray->origin, new_origin);
 
@@ -344,56 +364,75 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
 
     // get nearest object based on reflection vector of ray->direction
     V3 reflection = {0, 0, 0};
+    V3 refraction = {0, 0, 0};
     normalize(ray->direction);
     reflection_vector(ray->direction, ray_new.origin, obj_index, reflection);
+    refraction_vector(ray->direction, ray_new.origin, obj_index, curr_ior, refraction);
 
     // create temp variables to use for recursively shading
-    int best_o;     // index of closest object
-    double best_t;  // distance of closest object
+    int best_refl_o;     // index of closest reflected object
+    double best_refl_t;  // distance of closest reflected object
+    int best_refr_o;     // index of closest refracted object
+    double best_refr_t;  // distance of closest refracted object
+
     Ray ray_reflected = {
             .origin = {new_origin[0], new_origin[1], new_origin[2]},
             .direction = {reflection[0], reflection[1], reflection[2]}
     };
+    Ray ray_refracted = {
+            .origin = {new_origin[0], new_origin[1], new_origin[2]},
+            .direction = {refraction[0], refraction[1], refraction[2]}
+    };
     normalize(ray_reflected.direction);
+    normalize(ray_refracted.direction);
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
-    shoot(&ray_reflected, obj_index, INFINITY, &best_o, &best_t);
+    shoot(&ray_reflected, obj_index, INFINITY, &best_refl_o, &best_refl_t);
+    shoot(&ray_refracted, obj_index, INFINITY, &best_refr_o, &best_refr_t);
 
-    if (best_o == -1) { // there were no objects that we intersected with
+    if (best_refl_o == -1 && best_refr_o == -1) { // there were no objects that we intersected with
         scale_color(color, 0, color);
     }
-
     else {  // we had an intersection, so we need to recursively shade...
         double reflection_color[3] = {0, 0, 0};
+        //double refraction_color[3] = {0, 0, 0};
         double reflect_constant = get_reflectivity(obj_index);
         //double refract_constant = get_refractivity(obj_index);
-
-        shade(&ray_reflected, best_o, best_t, rec_level+1, reflection_color);
-        v3_scale(reflection_color, reflect_constant, reflection_color);
+        //double refr_ior = get_ior(best_refr_o);     // ior of closest object based on refraction vector
+        double refl_ior = get_ior(best_refl_o);     // ior of closest object based on reflection vector
 
         // create temp light object to hold object light reflection information
         Light light;
         light.type = REFLECTION;
         light.direction = malloc(sizeof(V3));
-        light.color = malloc(sizeof(double)*3);
-        v3_scale(reflection, -1, light.direction);
-        copy_color(reflection_color, light.color);
+        light.color = malloc(sizeof(double) * 3);
 
-        // set the new ray direction based on this temp "light" object
-        // first find the 3d position of the intersection with the "light" object
-        v3_scale(ray_reflected.direction, best_t, ray_reflected.direction);
+        // recursively shade based on reflection
+        if (best_refl_o >= 0) {
+            shade(&ray_reflected, best_refl_o, best_refl_t, refl_ior, rec_level+1, reflection_color);
+            v3_scale(reflection_color, reflect_constant, reflection_color);
 
-        /****** changed this from v3_add to v3_sub and all of a sudden got full reflections *****/
-        v3_sub(ray_reflected.direction, ray_new.origin, ray_new.direction);
-        normalize(ray_new.direction);
+            v3_scale(reflection, -1, light.direction);
+            copy_color(reflection_color, light.color);
 
-        direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY, color); // this version allows reflections to work
+            // set the new ray direction based on this temp "light" object
+            // first find the 3d position of the intersection with the "light" object
+            v3_scale(ray_reflected.direction, best_refl_t, ray_reflected.direction);
 
+            /****** changed this from v3_add to v3_sub and all of a sudden got full reflections *****/
+            v3_sub(ray_reflected.direction, ray_new.origin, ray_new.direction);
+            normalize(ray_new.direction);
+
+            direct_shade(&ray_new, obj_index, ray->direction, &light, INFINITY,
+                         color); // this version allows reflections to work
+        }
         //cleanup
         free(light.direction);
         free(light.color);
     }
     for (int i=0; i<nlights; i++) {
         // find new ray direction
+        int best_o;
+        double best_t;
         v3_zero(ray_new.direction);
         v3_sub(lights[i].position, ray_new.origin, ray_new.direction);
         double distance_to_light = v3_len(ray_new.direction);
@@ -448,7 +487,7 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             shoot(&ray, -1, INFINITY, &best_o, &best_t);
 
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
-                shade(&ray, best_o, best_t, 0, color);
+                shade(&ray, best_o, best_t, 1, 0, color);
                 set_pixel_color(color, i, j, img);
             }
             else {
