@@ -280,25 +280,8 @@ void shade(Ray *ray, int obj_index, double t, int rec_level, double color[3]) {
 
     // get nearest object based on reflection vector of ray->direction
     V3 reflection = {0, 0, 0};
-    //V3 obj_to_view = {0, 0, 0};
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////// This section is for testing, replacing the following section. Both methods seem to work the same way /////
-    //v3_copy(ray->direction, obj_to_view);
-    //normalize(obj_to_view);
     normalize(ray->direction);
     reflection_vector(ray->direction, ray_new.origin, obj_index, reflection);
-    /////////////// end section ////////////////////////////////////////////////////////////////////////////////////
-
-    ///// This section was how I originally did it //////////////////////////
-    //v3_scale(ray->direction, -1, obj_to_view);
-    //normalize(obj_to_view);
-    //reflection_vector(obj_to_view, ray_new.origin, obj_index, reflection);   // stores reflection of the new origin in "reflection"
-
-    // TESTING...
-    //v3_scale(reflection, -1, reflection);
-    // END TESTING
-    //////////// end section /////////////////////////////////////////////////
 
     // create temp variables to use for recursively shading
     int best_o;     // index of closest object
@@ -401,12 +384,6 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             double best_t;  // closest distance
             shoot(&ray, -1, INFINITY, &best_o, &best_t);
 
-            // Testing edge of circle where we're getting a black reflection instead of green. X: 9459, Y: 8104
-            if (i == 830 && j == 600) {
-                printf("found test pixel\n");
-            }
-
-            // set ambient color
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
                 shade(&ray, best_o, best_t, 0, color);
                 set_pixel_color(color, i, j, img);
