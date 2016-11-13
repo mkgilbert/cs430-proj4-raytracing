@@ -190,9 +190,9 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
     normalize(pos);
     double int_ior = get_ior(obj_index);
 
-    // This only works for this project only...Assume that there are no intersecting objects. Then if both ior's are
-    // the same, the current refraction vector must already be inside the object and heading back out, as opposed to
-    // entering it for the first time
+    // This only works for this project...Assume that there are no objects intersecting other objects. Then if both
+    // ior's are the same, the current refraction vector must already be inside the object and heading back out,
+    // as opposed to entering it for the first time
     if (int_ior == ext_ior) {
         int_ior = 1;
     }
@@ -391,7 +391,12 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
     normalize(ray_refracted.direction);
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
     shoot(&ray_reflected, obj_index, INFINITY, &best_refl_o, &best_refl_t);
-    shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
+
+    // we only want to shoot and possibly hit the same object we are currently on if it is a sphere, not a plane
+    if (objects[obj_index].type == PLANE)
+        shoot(&ray_refracted, obj_index, INFINITY, &best_refr_o, &best_refr_t);
+    else
+        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
 
     if (best_refl_o == -1 && best_refr_o == -1) { // there were no objects that we intersected with
         scale_color(color, 0, color);
@@ -439,6 +444,8 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         }
         if (best_refr_o >= 0) {
             refr_ior = get_ior(best_refr_o);
+            // adjust the ray a little so we don't keep using the same position
+            v3_scale(ray_refracted.direction, 0.01, ray_refracted.direction);
             // recursively shade based on refraction
             shade(&ray_refracted, best_refr_o, best_refr_t, refr_ior, rec_level+1, refraction_color);
             v3_scale(refraction_color, refract_constant, refraction_color);
@@ -543,7 +550,7 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             shoot(&ray, -1, INFINITY, &best_o, &best_t);
 
             // Test pixel
-            if (i == 539 && j == 852) {
+            if (i == 330 && j == 490) {
                 printf("found test pixel\n");
             }
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
