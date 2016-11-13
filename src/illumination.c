@@ -20,7 +20,7 @@ double clamp(double color_val){
         return color_val;
 }
 void scale_color(double* color, double scalar, double* out_color) {
-    if (scalar > 0.00001) {
+    if (scalar < 0.0) {
         fprintf(stderr, "Error: scale_color: Can't apply negative scalar to a color value\n");
         exit(1);
     }

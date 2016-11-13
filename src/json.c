@@ -486,6 +486,20 @@ void read_json(FILE *json) {
                     fprintf(stderr, "Error: read_json: object must have a diffuse color: %d\n", line);
                     exit(1);
                 }
+                if (obj_type == SPHERE) {
+                    Sphere *sphere = &objects[obj_counter].sphere;
+                    if (sphere->refract + sphere->reflect > 1.0) {
+                        fprintf(stderr, "Error: read_json: The sum of reflectivity and refractivity cannot be greater than 1: %d\n", line);
+                        exit(1);
+                    }
+                }
+                else if (obj_type == PLANE) {
+                    Plane *plane = &objects[obj_counter].plane;
+                    if (plane->refract + plane->reflect > 1.0) {
+                        fprintf(stderr, "Error: read_json: The sum of reflectivity and refractivity cannot be greater than 1: %d\n", line);
+                        exit(1);
+                    }
+                }
             }
             if (obj_type == CAMERA) {
                 if (objects[obj_counter].camera.width == 0) {
