@@ -3,7 +3,7 @@
     "type": "plane",
     "diffuse_color": [0.1, 0.1, 1],
     "specular_color": [1.0, 1.0, 1.0],
-    "reflectivity": 0.9,
+    "reflectivity": 1.0,
     "refractivity": 0.0,
     "position": [0, -1, 0],
     "normal": [0, 1, 0]
@@ -12,8 +12,8 @@
     "type": "sphere",
     "diffuse_color": [0.1, 0.7, 0.1],
     "specular_color": [1.0, 1.0, 1.0],
-    "reflectivity": 0.9,
-    "refractivity": 0.4,
+    "reflectivity": 0.1,
+    "refractivity": 0.9,
     "position": [0, 0, 10],
     "radius": 1
   },

@@ -149,17 +149,21 @@ double get_refractivity(int obj_index) {
 }
 
 double get_ior(int obj_index) {
+    double ior;
     if (objects[obj_index].type == PLANE) {
-        return objects[obj_index].plane.ior;
+        ior = objects[obj_index].plane.ior;
     }
     else if (objects[obj_index].type == SPHERE) {
-        return objects[obj_index].sphere.ior;
+        ior = objects[obj_index].sphere.ior;
     }
     else {
         fprintf(stderr, "Error: get_ior: Specified object does not have an ior property\n");
         exit(1);
-        return -1;
     }
+    if (fabs(ior) < 0.0001)
+        return 1;
+    else
+        return ior;
 }
 
 /**
@@ -184,14 +188,13 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
     v3_copy(position, pos);
     normalize(dir);
     normalize(pos);
-    double int_ior;
-    if (objects[obj_index].type == PLANE)
-        int_ior = objects[obj_index].plane.ior;
-    else if (objects[obj_index].type == SPHERE)
-        int_ior = objects[obj_index].sphere.ior;
-    else {
-        fprintf(stderr, "Error: refraction_vector: object of type %d does not have ior field\n", objects[obj_index].type);
-        exit(1);
+    double int_ior = get_ior(obj_index);
+
+    // This only works for this project only...Assume that there are no intersecting objects. Then if both ior's are
+    // the same, the current refraction vector must already be inside the object and heading back out, as opposed to
+    // entering it for the first time
+    if (int_ior == ext_ior) {
+        int_ior = 1;
     }
     V3 normal, a, b;
 
@@ -388,7 +391,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
     normalize(ray_refracted.direction);
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
     shoot(&ray_reflected, obj_index, INFINITY, &best_refl_o, &best_refl_t);
-    shoot(&ray_refracted, obj_index, INFINITY, &best_refr_o, &best_refr_t);
+    shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
 
     if (best_refl_o == -1 && best_refr_o == -1) { // there were no objects that we intersected with
         scale_color(color, 0, color);
@@ -459,15 +462,21 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
             reflect_constant = 0;
         if (refract_constant == -1)
             refract_constant = 0;
-        double color_diff = 1.0 - reflect_constant - refract_constant;
-        if (fabs(color_diff) < 0.0001) // account for numbers that are really close to 0, but still negative
-            color_diff = 0;
-        double obj_color[3] = {0, 0, 0};
-        copy_color(objects[obj_index].plane.diff_color, obj_color);
-        scale_color(obj_color, color_diff, obj_color);
-        color[0] += obj_color[0];
-        color[1] += obj_color[1];
-        color[2] += obj_color[2];
+        // only shade the object with its natural color if it should be visible. If both constants are 0, then it should not be visible
+        if (fabs(refract_constant) < 0.00001 && fabs(reflect_constant) < 0.00001) {
+            copy_color(background_color, color);
+        }
+        else {
+            double color_diff = 1.0 - reflect_constant - refract_constant;
+            if (fabs(color_diff) < 0.0001) // account for numbers that are really close to 0, but still negative
+                color_diff = 0;
+            double obj_color[3] = {0, 0, 0};
+            copy_color(objects[obj_index].plane.diff_color, obj_color);
+            scale_color(obj_color, color_diff, obj_color);
+            color[0] += obj_color[0];
+            color[1] += obj_color[1];
+            color[2] += obj_color[2];
+        }
 
         //cleanup
         free(refl_light.direction);
@@ -477,21 +486,21 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
     }
 
     for (int i=0; i<nlights; i++) {
-            // find new ray direction
-            int best_o;
-            double best_t;
-            v3_zero(ray_new.direction);
-            v3_sub(lights[i].position, ray_new.origin, ray_new.direction);
-            double distance_to_light = v3_len(ray_new.direction);
-            normalize(ray_new.direction);
+        // find new ray direction
+        int best_o;
+        double best_t;
+        v3_zero(ray_new.direction);
+        v3_sub(lights[i].position, ray_new.origin, ray_new.direction);
+        double distance_to_light = v3_len(ray_new.direction);
+        normalize(ray_new.direction);
 
-            // new check new ray for intersections with other objects
-            shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
+        // new check new ray for intersections with other objects
+        shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
 
-            if (best_o == -1) { // this means there was no object in the way between the current one and the light
-                direct_shade(&ray_new, obj_index, ray->direction, &lights[i], distance_to_light, color);
-            }
-            // there was an object in the way, so we don't do anything. It's shadow
+        if (best_o == -1) { // this means there was no object in the way between the current one and the light
+            direct_shade(&ray_new, obj_index, ray->direction, &lights[i], distance_to_light, color);
+        }
+        // there was an object in the way, so we don't do anything. It's shadow
     }
 }
 
@@ -533,6 +542,10 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             double best_t;  // closest distance
             shoot(&ray, -1, INFINITY, &best_o, &best_t);
 
+            // Test pixel
+            if (i == 539 && j == 852) {
+                printf("found test pixel\n");
+            }
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
                 shade(&ray, best_o, best_t, 1, 0, color);
                 set_pixel_color(color, i, j, img);
