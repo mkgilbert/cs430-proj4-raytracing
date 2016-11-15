@@ -192,6 +192,11 @@ void read_json(FILE *json) {
     int light_counter = 0;
     int obj_type;
     boolean not_done = true;
+    // flags for testing whether or not objects have these elements
+    boolean has_ior = false;
+    boolean has_reflect = false;
+    boolean has_refract = false;
+
     // find the objects
     while (not_done) {
         //c  = next_c(json);
@@ -401,6 +406,7 @@ void read_json(FILE *json) {
                         }
                     }
                     else if (strcmp(key, "reflectivity") == 0) {
+                        has_reflect = true;
                         if (obj_type == SPHERE)
                             objects[obj_counter].sphere.reflect = next_number(json);
                         else if (obj_type == PLANE)
@@ -411,6 +417,7 @@ void read_json(FILE *json) {
                         }
                     }
                     else if (strcmp(key, "refractivity") == 0) {
+                        has_refract = true;
                         if (obj_type == SPHERE)
                             objects[obj_counter].sphere.refract = next_number(json);
                         else if (obj_type == PLANE)
@@ -421,6 +428,7 @@ void read_json(FILE *json) {
                         }
                     }
                     else if (strcmp(key, "ior") == 0) {
+                        has_ior = true;
                         if (obj_type == SPHERE)
                             objects[obj_counter].sphere.ior = next_number(json);
                         else if (obj_type == PLANE)
@@ -488,6 +496,15 @@ void read_json(FILE *json) {
                 }
                 if (obj_type == SPHERE) {
                     Sphere *sphere = &objects[obj_counter].sphere;
+                    if (!has_refract) {
+                        sphere->refract = 0.0;
+                    }
+                    if (!has_reflect) {
+                        sphere->reflect = 0.0;
+                    }
+                    if (!has_ior) {
+                        sphere->ior = 1.0;
+                    }
                     if (sphere->refract + sphere->reflect > 1.0) {
                         fprintf(stderr, "Error: read_json: The sum of reflectivity and refractivity cannot be greater than 1: %d\n", line);
                         exit(1);
@@ -495,6 +512,15 @@ void read_json(FILE *json) {
                 }
                 else if (obj_type == PLANE) {
                     Plane *plane = &objects[obj_counter].plane;
+                    if (!has_refract) {
+                        plane->refract = 0.0;
+                    }
+                    if (!has_reflect) {
+                        plane->reflect = 0.0;
+                    }
+                    if (!has_ior) {
+                        plane->ior = 1.0;
+                    }
                     if (plane->refract + plane->reflect > 1.0) {
                         fprintf(stderr, "Error: read_json: The sum of reflectivity and refractivity cannot be greater than 1: %d\n", line);
                         exit(1);

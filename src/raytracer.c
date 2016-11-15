@@ -346,7 +346,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         return;
     }
     if (obj_index == -1) {  // base case, no intersecting object had been found, so return black
-        //scale_color(color, 0, color);
+        scale_color(color, 0, color);
         return;
     }
     if (ray == NULL) {
@@ -379,6 +379,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
     int best_refr_o;     // index of closest refracted object
     double best_refr_t;  // distance of closest refracted object
 
+
     Ray ray_reflected = {
             .origin = {new_origin[0], new_origin[1], new_origin[2]},
             .direction = {reflection[0], reflection[1], reflection[2]}
@@ -387,14 +388,16 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
             .origin = {new_origin[0], new_origin[1], new_origin[2]},
             .direction = {refraction[0], refraction[1], refraction[2]}
     };
+
     normalize(ray_reflected.direction);
     normalize(ray_refracted.direction);
+
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
     shoot(&ray_reflected, obj_index, INFINITY, &best_refl_o, &best_refl_t);
 
     // we only want to shoot and possibly hit the same object we are currently on if it is a sphere, not a plane
     if (objects[obj_index].type == PLANE)
-        shoot(&ray_refracted, obj_index, INFINITY, &best_refr_o, &best_refr_t);
+        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
     else
         shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
 
@@ -444,8 +447,6 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         }
         if (best_refr_o >= 0) {
             refr_ior = get_ior(best_refr_o);
-            // adjust the ray a little so we don't keep using the same position
-            v3_scale(ray_refracted.direction, 0.01, ray_refracted.direction);
             // recursively shade based on refraction
             shade(&ray_refracted, best_refr_o, best_refr_t, refr_ior, rec_level+1, refraction_color);
             v3_scale(refraction_color, refract_constant, refraction_color);
