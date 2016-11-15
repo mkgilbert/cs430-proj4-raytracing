@@ -84,7 +84,7 @@ double plane_intersect(Ray *ray, double *Pos, double *Norm) {
  * @param r - radius of the sphere
  * @return - distance to the object if intersects, otherwise, -1
  */
-double sphere_intersect(Ray *ray, double *C, double r) {
+double sphere_intersect(Ray *ray, double *C, double r, boolean *in_sphere) {
     double b, c;
     double vector_diff[3];
     //v3_sub(ray->direction, C, vector_diff);
@@ -101,10 +101,13 @@ double sphere_intersect(Ray *ray, double *C, double r) {
         return -1; // no solution
     }
     disc = sqrt(disc);
-    t = (-b - disc) / 2.0;
-    if (t < 0.0)
-        t = (-b + disc) / 2.0;
 
+    t = (-b - disc) / 2.0;
+    *(in_sphere) = false;
+    if (t < 0.0) {
+        *(in_sphere) = true;
+        t = (-b + disc) / 2.0;
+    }
     if (t < 0.0)
         return -1;
     return t;
@@ -181,7 +184,7 @@ void reflection_vector(V3 direction, V3 position, int obj_index, V3 reflection) 
     v3_reflect(direction, normal, reflection);
 }
 
-void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior, V3 refracted_vector) {
+void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior, V3 refracted_vector, boolean *in_sphere) {
     // initializations and variables setup
     V3 dir, pos;
     v3_copy(direction, dir);
@@ -190,12 +193,11 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
     normalize(pos);
     double int_ior = get_ior(obj_index);
 
-    // This only works for this project...Assume that there are no objects intersecting other objects. Then if both
-    // ior's are the same, the current refraction vector must already be inside the object and heading back out,
-    // as opposed to entering it for the first time
-    if (int_ior == ext_ior) {
+    // This only works for this project...Assume that there are no objects intersecting other objects. Check if we are
+    // already inside of a sphere. If we are, then the next ior will be 1 (air)
+    if ((*in_sphere) == true)
         int_ior = 1;
-    }
+
     V3 normal, a, b;
 
     // find normal vector of current object
@@ -224,8 +226,9 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
  * @param ret_index - the index in objects array of the closest object we intersected
  * @param ret_best_t - the distance of the closest object
  */
-void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double *ret_best_t) {
+void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double *ret_best_t, boolean *ret_in_sphere) {
     int best_o = -1;
+    boolean in_sphere = false; // tells us if we are inside the sphere
     double best_t = INFINITY;
     for (int i=0; objects[i].type != 0; i++) {
         // if self_index was passed in as > 0, we must ignore object i because we are checking distance to another
@@ -234,6 +237,7 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
 
         // we need to run intersection test on each object
         double t = 0;
+        in_sphere = false;
         switch(objects[i].type) {
             case 0:
                 printf("no object found\n");
@@ -242,7 +246,7 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
                 break;
             case SPHERE:
                 t = sphere_intersect(ray, objects[i].sphere.position,
-                                     objects[i].sphere.radius);
+                                     objects[i].sphere.radius, &in_sphere);
                 break;
             case PLANE:
                 t = plane_intersect(ray, objects[i].plane.position,
@@ -261,6 +265,7 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
     }
     (*ret_index) = best_o;
     (*ret_best_t) = best_t;
+    (*ret_in_sphere) = in_sphere;
 }
 
 /**
@@ -338,7 +343,7 @@ void direct_shade(Ray *ray, int obj_index, double position[3], Light *light, dou
  * @param color - this will be the output color after shade calculations are done
  * @param rec_level - This is the current level of recursion we are on
  */
-void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, double color[3]) {
+void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, double color[3], boolean *in_sphere) {
     // check that we haven't done too many recursions
     if (rec_level > MAX_REC_LEVEL) { // base case, reached max number of recursions
         // return black for color
@@ -371,7 +376,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
     V3 refraction = {0, 0, 0};
     normalize(ray->direction);
     reflection_vector(ray->direction, ray_new.origin, obj_index, reflection);
-    refraction_vector(ray->direction, ray_new.origin, obj_index, curr_ior, refraction);
+    refraction_vector(ray->direction, ray_new.origin, obj_index, curr_ior, refraction, in_sphere);
 
     // create temp variables to use for recursively shading
     int best_refl_o;     // index of closest reflected object
@@ -389,17 +394,25 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
             .direction = {refraction[0], refraction[1], refraction[2]}
     };
 
+    // offset the new origin of each ray by just a little in the direction of the ray, so we can avoid running into the same object again
+    V3 offset = {0, 0, 0};
+    v3_scale(ray_reflected.direction, 0.01, offset);
+    v3_add(ray_reflected.origin, offset, ray_reflected.origin);
+    v3_zero(offset);
+    v3_scale(ray_refracted.direction, 0.01, offset);
+    v3_add(ray_refracted.origin, offset, ray_refracted.origin);
+
     normalize(ray_reflected.direction);
     normalize(ray_refracted.direction);
 
     // shoot new reflection vector out as a new ray, to check if there is an intersection with another object
-    shoot(&ray_reflected, obj_index, INFINITY, &best_refl_o, &best_refl_t);
+    shoot(&ray_reflected, -1, INFINITY, &best_refl_o, &best_refl_t, in_sphere);
 
     // we only want to shoot and possibly hit the same object we are currently on if it is a sphere, not a plane
     if (objects[obj_index].type == PLANE)
-        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
+        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t, in_sphere);
     else
-        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t);
+        shoot(&ray_refracted, -1, INFINITY, &best_refr_o, &best_refr_t, in_sphere);
 
     if (best_refl_o == -1 && best_refr_o == -1) { // there were no objects that we intersected with
         scale_color(color, 0, color);
@@ -429,7 +442,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         if (best_refl_o >= 0) {
             // recursively shade based on reflection
             refl_ior = get_ior(best_refl_o);
-            shade(&ray_reflected, best_refl_o, best_refl_t, refl_ior, rec_level+1, reflection_color);
+            shade(&ray_reflected, best_refl_o, best_refl_t, refl_ior, rec_level+1, reflection_color, in_sphere);
             v3_scale(reflection_color, reflect_constant, reflection_color);
 
             v3_scale(reflection, -1, refl_light.direction);
@@ -448,7 +461,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         if (best_refr_o >= 0) {
             refr_ior = get_ior(best_refr_o);
             // recursively shade based on refraction
-            shade(&ray_refracted, best_refr_o, best_refr_t, refr_ior, rec_level+1, refraction_color);
+            shade(&ray_refracted, best_refr_o, best_refr_t, refr_ior, rec_level+1, refraction_color, in_sphere);
             v3_scale(refraction_color, refract_constant, refraction_color);
 
             v3_scale(refraction, -1, refr_light.direction);
@@ -503,7 +516,7 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
         normalize(ray_new.direction);
 
         // new check new ray for intersections with other objects
-        shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t);
+        shoot(&ray_new, obj_index, distance_to_light, &best_o, &best_t, in_sphere);
 
         if (best_o == -1) { // this means there was no object in the way between the current one and the light
             direct_shade(&ray_new, obj_index, ray->direction, &lights[i], distance_to_light, color);
@@ -548,14 +561,15 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
 
             int best_o;     // index of 'best' or closest object
             double best_t;  // closest distance
-            shoot(&ray, -1, INFINITY, &best_o, &best_t);
+            boolean in_sphere = false;
+            shoot(&ray, -1, INFINITY, &best_o, &best_t, &in_sphere);
 
             // Test pixel
             if (i == 330 && j == 490) {
                 printf("found test pixel\n");
             }
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
-                shade(&ray, best_o, best_t, 1, 0, color);
+                shade(&ray, best_o, best_t, 1, 0, color, &in_sphere);
                 set_pixel_color(color, i, j, img);
             }
             else {

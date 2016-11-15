@@ -23,6 +23,5 @@ typedef struct ray_t {
 
 /* functions */
 void raycast_scene(image*, double, double, object*);
-void reflection_vector(V3 direction, V3 position, int obj_index, V3 reflection);
 int get_camera(object*);
 #endif
