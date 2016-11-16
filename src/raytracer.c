@@ -86,10 +86,11 @@ double plane_intersect(Ray *ray, double *Pos, double *Norm) {
  */
 double sphere_intersect(Ray *ray, double *C, double r, boolean *in_sphere) {
     double b, c;
-    double vector_diff[3];
+    V3 vector_diff;
     //v3_sub(ray->direction, C, vector_diff);
     v3_sub(ray->origin, C, vector_diff);
-
+    double len = v3_len(vector_diff);
+    if (len < r);
     // calculate quadratic formula
     b = 2 * (ray->direction[0]*vector_diff[0] + ray->direction[1]*vector_diff[1] + ray->direction[2]*vector_diff[2]);
     c = sqr(vector_diff[0]) + sqr(vector_diff[1]) + sqr(vector_diff[2]) - sqr(r);
@@ -202,6 +203,11 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
 
     // find normal vector of current object
     normal_vector(obj_index, pos, normal);
+
+    // TODO: try this if you can get reflections mostly working, but still have issues
+    //if ((*in_sphere) == true)
+    //    v3_scale(normal, -1, normal);
+
     normalize(normal);
 
     // create coordinate frame with a and b, where b is tangent to the object intersection
@@ -228,7 +234,7 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
  */
 void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double *ret_best_t, boolean *ret_in_sphere) {
     int best_o = -1;
-    boolean in_sphere = false; // tells us if we are inside the sphere
+    boolean best_in_sphere = false; // tells us if we are inside the sphere
     double best_t = INFINITY;
     for (int i=0; objects[i].type != 0; i++) {
         // if self_index was passed in as > 0, we must ignore object i because we are checking distance to another
@@ -237,7 +243,7 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
 
         // we need to run intersection test on each object
         double t = 0;
-        in_sphere = false;
+        boolean in_sphere = false;
         switch(objects[i].type) {
             case 0:
                 printf("no object found\n");
@@ -261,11 +267,12 @@ void shoot(Ray *ray, int self_index, double max_distance, int *ret_index, double
         if (t > 0 && t < best_t) {
             best_t = t;
             best_o = i;
+            best_in_sphere = in_sphere;
         }
     }
     (*ret_index) = best_o;
     (*ret_best_t) = best_t;
-    (*ret_in_sphere) = in_sphere;
+    (*ret_in_sphere) = best_in_sphere;
 }
 
 /**
@@ -475,7 +482,8 @@ void shade(Ray *ray, int obj_index, double t, double curr_ior, int rec_level, do
             v3_sub(ray_refracted.direction, ray_new.origin, ray_new.direction);
             normalize(ray_new.direction);
 
-            direct_shade(&ray_new, obj_index, ray->direction, &refr_light, INFINITY, color); // this version allows reflections to work
+            v3_add(color, refraction_color, color);   // doing this instead of direct_shade gets me transparent objects, but doesn't work when there are multiple reflective surfaces
+            //direct_shade(&ray_new, obj_index, ray->direction, &refr_light, INFINITY, color); // this version allows reflections to work
         }
 
         // now add what is left of the original color of the object to the current intersection point
@@ -564,8 +572,8 @@ void raycast_scene(image *img, double cam_width, double cam_height, object *obje
             boolean in_sphere = false;
             shoot(&ray, -1, INFINITY, &best_o, &best_t, &in_sphere);
 
-            // Test pixel
-            if (i == 330 && j == 490) {
+            // Test pixel 400x420
+            if (i == 420 && j == 400) {
                 printf("found test pixel\n");
             }
             if (best_t > 0 && best_t != INFINITY && best_o != -1) {// there was an intersection
