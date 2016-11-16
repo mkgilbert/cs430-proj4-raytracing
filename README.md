@@ -29,3 +29,7 @@ $ make
 
 #### Windows ####
 `> raytrace.exe <width> <height> <input.json> <output>`
+
+## Example Output Image ##
+
+![raycase example](example_output/working_reflection_refraction.png)
