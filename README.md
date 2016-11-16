@@ -32,4 +32,4 @@ $ make
 
 ## Example Output Image ##
 
-![raycase example](https://github.com/mkgilbert/cs430-proj4-raytracing/blob/master/example_output/reflections_project_test.png)
+![raycase example](https://github.com/mkgilbert/cs430-proj4-raytracing/blob/master/example_output/working_reflection_refraction.png)
