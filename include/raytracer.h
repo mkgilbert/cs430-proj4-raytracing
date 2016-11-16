@@ -22,6 +22,6 @@ typedef struct ray_t {
 } Ray;
 
 /* functions */
-void raycast_scene(image*, double, double, object*);
+void raycast_scene(image*, double, double);
 int get_camera(object*);
 #endif

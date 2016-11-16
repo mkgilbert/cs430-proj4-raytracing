@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* fill the img->pixmap with colors by raycasting the objects */
-    raycast_scene(&img, objects[pos].camera.width, objects[pos].camera.height, objects);
+    raycast_scene(&img, objects[pos].camera.width, objects[pos].camera.height);
 
     /* create output file and write image data */
     FILE *out = fopen(argv[4], "wb");
