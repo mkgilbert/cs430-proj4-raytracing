@@ -205,8 +205,8 @@ void refraction_vector(V3 direction, V3 position, int obj_index, double ext_ior,
     normal_vector(obj_index, pos, normal);
 
     // TODO: try this if you can get reflections mostly working, but still have issues
-    //if ((*in_sphere) == true)
-    //    v3_scale(normal, -1, normal);
+    if ((*in_sphere) == true)
+        v3_scale(normal, -1, normal);
 
     normalize(normal);
 
