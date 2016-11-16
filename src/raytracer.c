@@ -87,10 +87,8 @@ double plane_intersect(Ray *ray, double *Pos, double *Norm) {
 double sphere_intersect(Ray *ray, double *C, double r, boolean *in_sphere) {
     double b, c;
     V3 vector_diff;
-    //v3_sub(ray->direction, C, vector_diff);
     v3_sub(ray->origin, C, vector_diff);
-    double len = v3_len(vector_diff);
-    if (len < r);
+
     // calculate quadratic formula
     b = 2 * (ray->direction[0]*vector_diff[0] + ray->direction[1]*vector_diff[1] + ray->direction[2]*vector_diff[2]);
     c = sqr(vector_diff[0]) + sqr(vector_diff[1]) + sqr(vector_diff[2]) - sqr(r);
