@@ -31,7 +31,7 @@
     "diffuse_color": [0.01, 0.01, 1],
     "specular_color": [1, 1, 1],
     "position": [2.0, -0.1, 11],
-    "reflectivity": 0.0,
+    "reflectivity": 0.2,
     "refractivity": 0.8,
     "ior": 1.6
   },
