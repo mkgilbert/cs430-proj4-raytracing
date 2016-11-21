@@ -1,5 +1,7 @@
 cs430-proj4-raytracing
 =========================
+#### NOTE: There is currently an issue with this program where it takes a very long time to render. It does finish, but takes around 1 minute ####
+
 Applies basic shading and lighting techniques to spheres and planes. Supports multiple light sources
 and spotlights as well as pointlights. 
 
